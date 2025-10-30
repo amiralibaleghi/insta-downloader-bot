@@ -136,6 +136,22 @@ def cmd_start(message):
         return
     bot.reply_to(message, "سلام! لینک پست اینستاگرام را بفرست تا دانلودش کنم.\n(فقط پست‌های عمومی پشتیبانی می‌شوند.)")
 
+# global dict برای محدودیت روزانه
+daily_downloads = {}  # user_id -> {"count": n, "last_reset": timestamp}
+MAX_DOWNLOADS_PER_DAY = 5
+
+def can_download(user_id):
+    now = time.time()
+    user_data = daily_downloads.get(user_id, {"count": 0, "last_reset": now})
+    # اگر روز جدید شده، شمارش رو ریست کن
+    if now - user_data["last_reset"] > 24*60*60:
+        user_data = {"count": 0, "last_reset": now}
+    if user_data["count"] >= MAX_DOWNLOADS_PER_DAY:
+        return False, MAX_DOWNLOADS_PER_DAY - user_data["count"]
+    user_data["count"] += 1
+    daily_downloads[user_id] = user_data
+    return True, MAX_DOWNLOADS_PER_DAY - user_data["count"]
+
 @bot.message_handler(func=lambda m: True)
 def handle_all(message):
     text = (message.text or "").strip()
@@ -160,6 +176,12 @@ def handle_all(message):
     ok, wait = user_allowed(user_id)
     if not ok:
         bot.reply_to(message, f"کمی صبر کن لطفاً — {wait} ثانیه دیگه امتحان کن.")
+        return
+
+    # بررسی محدودیت روزانه
+    ok_daily, remaining = can_download(user_id)
+    if not ok_daily:
+        bot.reply_to(message, f"❌ امروز به حد اکثر {MAX_DOWNLOADS_PER_DAY} دانلود رسیدی.\nلطفاً فردا دوباره امتحان کن.")
         return
 
     # آیا لینک اینستاگرام است؟

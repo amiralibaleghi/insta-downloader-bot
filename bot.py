@@ -14,6 +14,7 @@ MAX_SEND_SIZE = 50 * 1024 * 1024  # 50 MB
 YT_DLP_TIMEOUT = 300           # ثانیه (حداکثر زمان دانلود)
 WORKERS = 2                    # تعداد thread برای پردازش هم‌زمان دانلودها
 # -----------------------------
+CHANNEL_USERNAME = "@viraa_land"  
 
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
@@ -26,6 +27,12 @@ INSTAGRAM_REGEX = re.compile(r"https?://(www\.)?instagram\.com/[^\s]+")
 
 # ساده‌ترین نقشه برای cooldown
 last_request = {}  # user_id -> timestamp
+def is_user_joined(user_id):
+    try:
+        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in ['member', 'administrator', 'creator']
+    except Exception:
+        return False
 
 def user_allowed(user_id):
     now = time.time()
@@ -63,7 +70,7 @@ def get_direct_urls(url):
 
 def process_instagram_download(chat_id, user_id, url):
     try:
-        bot.send_message(chat_id, "⏳ در حال آماده‌سازی دانلود... لطفاً صبر کن.")
+        bot.send_message(chat_id, "⏳ در حال آماده‌سازی دانلود... لطفاً صبر کنید.")
         # پوشه موقت
         with tempfile.TemporaryDirectory() as tmpdir:
             # دانلود با yt-dlp
@@ -126,6 +133,10 @@ def handle_all(message):
     text = (message.text or "").strip()
     chat_id = message.chat.id
     user_id = message.from_user.id
+        # بررسی عضویت در کانال
+    if not is_user_joined(user_id):
+        bot.reply_to(message, f"برای استفاده از ربات باید در کانال ما عضو شوی 😍\n{CHANNEL_USERNAME}")
+        return
 
     # چک cooldown
     ok, wait = user_allowed(user_id)

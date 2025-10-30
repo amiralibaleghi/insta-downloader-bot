@@ -137,7 +137,7 @@ def handle_all(message):
     # بررسی عضویت در کانال
     if not is_user_joined(user_id):
         markup = types.InlineKeyboardMarkup()
-        join_button = types.InlineKeyboardButton("عضویت در کانال 💎", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")
+        join_button = types.InlineKeyboardButton("عضویت در کانال Viraland", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")
         refresh_button = types.InlineKeyboardButton("✅ بررسی دوباره عضویت", callback_data="check_join")
         markup.add(join_button)
         markup.add(refresh_button)

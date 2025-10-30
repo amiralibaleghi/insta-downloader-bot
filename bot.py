@@ -123,10 +123,18 @@ def process_instagram_download(chat_id, user_id, url):
     except Exception as e:
         bot.send_message(chat_id, f"خطا رخ داد: {e}")
 
-
 @bot.message_handler(commands=['start'])
 def cmd_start(message):
-    bot.reply_to(message, "سلام! لینک پست اینستاگرام را بفرست تا تلاش کنم دانلودش کنم.\nتوجه: فقط پست‌های عمومی پشتیبانی می‌شوند.")
+    user_id = message.from_user.id
+    if not is_user_joined(user_id):
+        markup = types.InlineKeyboardMarkup()
+        join_button = types.InlineKeyboardButton("عضویت در کانال 💎", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")
+        refresh_button = types.InlineKeyboardButton("✅ بررسی دوباره عضویت", callback_data="check_join")
+        markup.add(join_button)
+        markup.add(refresh_button)
+        bot.reply_to(message, "برای استفاده از ربات باید در کانال عضو شوی 😍\nبعد از عضویت روی بررسی دوباره بزن 👇", reply_markup=markup)
+        return
+    bot.reply_to(message, "سلام! لینک پست اینستاگرام را بفرست تا دانلودش کنم.\n(فقط پست‌های عمومی پشتیبانی می‌شوند.)")
 
 @bot.message_handler(func=lambda m: True)
 def handle_all(message):

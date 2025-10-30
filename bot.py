@@ -138,7 +138,7 @@ def cmd_start(message):
 
 # global dict برای محدودیت روزانه
 daily_downloads = {}  # user_id -> {"count": n, "last_reset": timestamp}
-MAX_DOWNLOADS_PER_DAY = 5
+MAX_DOWNLOADS_PER_DAY = 4
 
 def can_download(user_id):
     now = time.time()

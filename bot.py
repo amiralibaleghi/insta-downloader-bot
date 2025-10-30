@@ -1,7 +1,7 @@
 import telebot
-
+import os
 # توکن رباتت که از BotFather گرفتی
-TOKEN = '8186797648:AAGbklpAe4BraJRTIyeHavnSJ5Y7IYONzn4'
+TOKEN = os.getenv("TOKEN")
 
 bot = telebot.TeleBot(TOKEN)
 

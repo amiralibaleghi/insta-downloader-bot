@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import telebot
-
+from telebot import types
 # ---------- تنظیمات ----------
 COOLDOWN_SECONDS = 30          # فاصله زمانی بین درخواست‌های یک کاربر
 MAX_SEND_SIZE = 50 * 1024 * 1024  # 50 MB
@@ -133,9 +133,19 @@ def handle_all(message):
     text = (message.text or "").strip()
     chat_id = message.chat.id
     user_id = message.from_user.id
-        # بررسی عضویت در کانال
+
+    # بررسی عضویت در کانال
     if not is_user_joined(user_id):
-        bot.reply_to(message, f"برای استفاده از ربات باید در کانال ما عضو شوی 😍\n{CHANNEL_USERNAME}")
+        markup = types.InlineKeyboardMarkup()
+        join_button = types.InlineKeyboardButton("عضویت در کانال 💎", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")
+        refresh_button = types.InlineKeyboardButton("✅ بررسی دوباره عضویت", callback_data="check_join")
+        markup.add(join_button)
+        markup.add(refresh_button)
+        bot.reply_to(
+            message,
+            "برای استفاده از ربات باید در کانال ما عضو شوی 😍\nبعد از عضویت، روی دکمه بررسی دوباره بزن 👇",
+            reply_markup=markup
+        )
         return
 
     # چک cooldown
@@ -151,9 +161,17 @@ def handle_all(message):
         return
 
     url = m.group(0)
-    # اجرا در thread جداگانه تا bot responsive بمونه
     executor.submit(process_instagram_download, chat_id, user_id, url)
     bot.reply_to(message, "درخواستت ثبت شد — دانلود در حال انجام است. پیام موفق/خطا را همین‌جا دریافت می‌کنی.")
+
+@bot.callback_query_handler(func=lambda call: call.data == "check_join")
+def check_join_callback(call):
+    user_id = call.from_user.id
+    if is_user_joined(user_id):
+        bot.answer_callback_query(call.id, "✅ عضویت شما تایید شد!")
+        bot.send_message(call.message.chat.id, "حالا می‌تونی لینک پست اینستاگرام رو بفرستی 😍")
+    else:
+        bot.answer_callback_query(call.id, "❌ هنوز عضو کانال نشدی!")
 
 if __name__ == "__main__":
     print("Bot started (polling)...")

@@ -27,7 +27,7 @@ executor = ThreadPoolExecutor(max_workers=WORKERS)
 
 # الگوهای دقیق لینک
 INSTAGRAM_REGEX = re.compile(r"https?://(www\.)?instagram\.com/[^\s]+")
-YOUTUBE_REGEX = re.compile(r"(https?://)?(www\.)?(youtube\.com|youtu\.be)/[^\s]+")
+YOUTUBE_REGEX = re.compile(r"(https?://)?(www\.)?youtube\.com/shorts/[^\s]+")
 SOUNDCLOUD_REGEX = re.compile(r'(https?://(?:www\.|m\.|on\.)?soundcloud\.com/[^\s]+)')
 
 # دیکشنری‌ها
@@ -123,10 +123,6 @@ def process_download(chat_id, user_id, url, platform):
 
         filesize_str = proc.stdout.strip()
         filesize = int(filesize_str) if filesize_str.isdigit() else None
-
-        if filesize is None:
-            bot.send_message(chat_id, "⚠️ حجم فایل قابل تشخیص نیست، دانلود انجام نمی‌شود.")
-            return
 
         if filesize > MAX_SEND_SIZE:
             bot.send_message(chat_id, "⚠️ در حال حاضر فایل‌های بزرگ‌تر از 50 مگابایت قابل دانلود نیستند.")

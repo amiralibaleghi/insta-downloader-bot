@@ -112,27 +112,43 @@ def cmd_start(message):
 
 def process_download(chat_id, user_id, url, platform):
     try:
-        bot.send_message(chat_id, f"⏳ در حال دانلود از {platform} ... لطفاً صبر کنید.")
+        bot.send_message(chat_id, f"⏳ در حال بررسی و دانلود از {platform} ... لطفاً صبر کنید.")
+
+        # گرفتن اطلاعات ویدیو بدون دانلود کامل
+        urls = get_direct_urls(url)
+        if not urls:
+            bot.send_message(chat_id, "❌ نتوانستم اطلاعات لینک را دریافت کنم.")
+            return
+
+        # بررسی حجم تقریبی با استفاده از yt-dlp (metadata)
+        cmd = ["yt-dlp", "--skip-download", "--print", "%(filesize_approx)s", url]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if proc.returncode != 0:
+            raise RuntimeError(f"yt-dlp failed: {proc.stderr.strip()}")
+
+        filesize_str = proc.stdout.strip()
+        filesize = int(filesize_str) if filesize_str.isdigit() else None
+
+        if filesize is not None and filesize > MAX_SEND_SIZE:
+            bot.send_message(chat_id, "فایل بزرگتر از حد مجاز (50MB) است. لینک مستقیم 👇")
+            for u in urls:
+                bot.send_message(chat_id, u)
+            return
+
+        # اگر حجم مناسب بود، دانلود و ارسال کن
         with tempfile.TemporaryDirectory() as tmpdir:
             files = run_yt_dlp_download(url, tmpdir)
             if not files:
-                bot.send_message(chat_id, "فایلی پیدا نشد یا نتوانستم دانلود کنم ❌")
+                bot.send_message(chat_id, "❌ فایلی پیدا نشد یا نتوانستم دانلود کنم.")
                 return
             for fpath in files:
-                fsize = os.path.getsize(fpath)
-                fname = os.path.basename(fpath)
-                if fsize <= MAX_SEND_SIZE:
-                    with open(fpath, "rb") as f:  # ← فایل با context manager باز می‌شه
-                        bot.send_document(chat_id, f)
-                    time.sleep(1)
-                else:
-                    urls = get_direct_urls(url)
-                    bot.send_message(chat_id, "فایل بزرگتر از حد مجاز (50MB) است. لینک مستقیم 👇")
-                    for u in urls:
-                        bot.send_message(chat_id, u)
-                        time.sleep(1)
+                with open(fpath, "rb") as f:
+                    bot.send_document(chat_id, f)
+                time.sleep(1)
+
     except Exception as e:
         bot.send_message(chat_id, f"خطا در دانلود از {platform}: {e}")
+
 
 @bot.message_handler(func=lambda m: True)
 def handle_all(message):

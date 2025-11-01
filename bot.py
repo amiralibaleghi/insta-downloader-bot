@@ -114,35 +114,32 @@ def process_download(chat_id, user_id, url, platform):
     try:
         bot.send_message(chat_id, f"⏳ در حال بررسی و دانلود از {platform} ... لطفاً صبر کنید.")
 
-        # گرفتن URL مستقیم بدون دانلود کامل
-        cmd = ["yt-dlp", "-f", "best", "--get-url", url]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if proc.returncode != 0:
-            bot.send_message(chat_id, f"❌ خطا در گرفتن لینک مستقیم: {proc.stderr.strip()}")
-            return
-        urls = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+        # گرفتن اطلاعات ویدیو بدون دانلود کامل
+        urls = get_direct_urls(url)
         if not urls:
-            bot.send_message(chat_id, "❌ نتوانستم لینک مستقیم دریافت کنم.")
+            bot.send_message(chat_id, "❌ نتوانستم اطلاعات لینک را دریافت کنم.")
             return
 
-        # بررسی حجم تقریبی با استفاده از metadata
-        cmd_meta = ["yt-dlp", "--skip-download", "--print", "%(filesize_approx)s", url]
-        proc_meta = subprocess.run(cmd_meta, capture_output=True, text=True, timeout=30)
-        filesize_str = proc_meta.stdout.strip()
+        # بررسی حجم تقریبی با استفاده از yt-dlp (metadata)
+        cmd = ["yt-dlp", "--skip-download", "--print", "%(filesize_approx)s", url]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if proc.returncode != 0:
+            raise RuntimeError(f"yt-dlp failed: {proc.stderr.strip()}")
+
+        filesize_str = proc.stdout.strip()
         filesize = int(filesize_str) if filesize_str.isdigit() else None
 
         if filesize is not None and filesize > MAX_SEND_SIZE:
-            # فایل بزرگتر از حد مجاز، فقط لینک مستقیم می‌دهیم
-            bot.send_message(chat_id, "⚠️ فایل بزرگتر از حد مجاز (50MB) است. از لینک‌های زیر دانلود کن:")
+            bot.send_message(chat_id, "فایل بزرگتر از حد مجاز (50MB) است. لینک مستقیم 👇")
             for u in urls:
                 bot.send_message(chat_id, u)
             return
 
-        # اگر فایل کوچک بود، دانلود و ارسال شود
+        # اگر حجم مناسب بود، دانلود و ارسال کن
         with tempfile.TemporaryDirectory() as tmpdir:
             files = run_yt_dlp_download(url, tmpdir)
             if not files:
-                bot.send_message(chat_id, "❌ فایل پیدا نشد یا نتوانستم دانلود کنم.")
+                bot.send_message(chat_id, "❌ فایلی پیدا نشد یا نتوانستم دانلود کنم.")
                 return
             for fpath in files:
                 with open(fpath, "rb") as f:
@@ -150,9 +147,7 @@ def process_download(chat_id, user_id, url, platform):
                 time.sleep(1)
 
     except Exception as e:
-        bot.send_message(chat_id, f"❌ خطا در دانلود از {platform}: {e}")
-
-
+        bot.send_message(chat_id, f"خطا در دانلود از {platform}: {e}")
 
 @bot.message_handler(func=lambda m: True)
 def handle_all(message):

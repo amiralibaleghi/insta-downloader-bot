@@ -8,6 +8,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import telebot
 from telebot import types
+import requests
 
 # ---------- تنظیمات ----------
 COOLDOWN_SECONDS = 30
@@ -27,7 +28,7 @@ executor = ThreadPoolExecutor(max_workers=WORKERS)
 # الگوهای دقیق لینک
 INSTAGRAM_REGEX = re.compile(r"https?://(www\.)?instagram\.com/[^\s]+")
 YOUTUBE_REGEX = re.compile(r"(https?://)?(www\.)?(youtube\.com|youtu\.be)/[^\s]+")
-SOUNDCLOUD_REGEX = re.compile(r"https?://(soundcloud\.com|on\.soundcloud\.com|soundcloud\.app\.goo\.gl)/[^\s]+")
+SOUNDCLOUD_REGEX = r"(https?://(on\.soundcloud\.com|soundcloud\.com)/[^\s]+)"
 
 # دیکشنری‌ها
 last_request_time = {}

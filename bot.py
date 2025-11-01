@@ -10,12 +10,12 @@ import telebot
 from telebot import types
 
 # ---------- تنظیمات ----------
-COOLDOWN_SECONDS = 30          # فاصله زمانی بین درخواست‌های یک کاربر
+COOLDOWN_SECONDS = 30
 MAX_SEND_SIZE = 50 * 1024 * 1024  # 50 MB
-YT_DLP_TIMEOUT = 300           # ثانیه (حداکثر زمان دانلود)
-WORKERS = 2                    # تعداد thread برای پردازش هم‌زمان دانلودها
-# -----------------------------
+YT_DLP_TIMEOUT = 300
+WORKERS = 2
 CHANNEL_USERNAME = "@viraa_land"
+# -----------------------------
 
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
@@ -24,13 +24,22 @@ if not TOKEN:
 bot = telebot.TeleBot(TOKEN)
 executor = ThreadPoolExecutor(max_workers=WORKERS)
 
+# الگوهای دقیق لینک
 INSTAGRAM_REGEX = re.compile(r"https?://(www\.)?instagram\.com/[^\s]+")
 YOUTUBE_REGEX = re.compile(r"(https?://)?(www\.)?(youtube\.com|youtu\.be)/[^\s]+")
-SOUNDCLOUD_REGEX = re.compile(r"https?://(www\.)?soundcloud\.com/[^\s]+")
+SOUNDCLOUD_REGEX = re.compile(r"https?://(soundcloud\.com|on\.soundcloud\.com|soundcloud\.app\.goo\.gl)/[^\s]+")
 
-# جدا کردن دیکشنری‌ها تا تداخل نداشته باشیم
-last_request_time = {}  # user_id -> timestamp (برای cooldown)
-user_platform = {}      # user_id -> "instagram" | "youtube" | "soundcloud"
+# دیکشنری‌ها
+last_request_time = {}
+user_platform = {}
+daily_downloads = {}  # user_id -> { "instagram": {...}, "youtube": {...}, "soundcloud": {...} }
+
+# محدودیت‌های روزانه برای هر پلتفرم
+LIMITS_PER_PLATFORM = {
+    "instagram": 4,
+    "youtube": 1,
+    "soundcloud": 10
+}
 
 def is_user_joined(user_id):
     try:
@@ -47,11 +56,25 @@ def user_allowed(user_id):
     last_request_time[user_id] = now
     return True, 0
 
+def check_daily_limit(user_id, platform):
+    now = time.time()
+    user_data = daily_downloads.get(user_id, {})
+    platform_data = user_data.get(platform, {"count": 0, "last_reset": now})
+
+    # ریست روزانه
+    if now - platform_data["last_reset"] > 24 * 60 * 60:
+        platform_data = {"count": 0, "last_reset": now}
+
+    max_limit = LIMITS_PER_PLATFORM.get(platform, 3)
+    if platform_data["count"] >= max_limit:
+        return False, 0, max_limit
+
+    platform_data["count"] += 1
+    user_data[platform] = platform_data
+    daily_downloads[user_id] = user_data
+    return True, max_limit - platform_data["count"], max_limit
+
 def run_yt_dlp_download(url, outdir):
-    """
-    دانلود پست با yt-dlp به outdir
-    برمی‌گرداند لیست مسیر فایل‌های دانلودشده
-    """
     out_template = str(Path(outdir) / "%(id)s.%(ext)s")
     cmd = ["yt-dlp", "-o", out_template, url]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=YT_DLP_TIMEOUT)
@@ -61,7 +84,6 @@ def run_yt_dlp_download(url, outdir):
     return [str(p) for p in files]
 
 def get_direct_urls(url):
-    """در صورت بزرگ بودن فایل، آدرس/آدرس‌های دانلود مستقیم را می‌گیریم."""
     cmd = ["yt-dlp", "--get-url", url]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if proc.returncode != 0:
@@ -69,56 +91,6 @@ def get_direct_urls(url):
     urls = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
     return urls
 
-def process_instagram_download(chat_id, user_id, url):
-    try:
-        bot.send_message(chat_id, "⏳ در حال آماده‌سازی دانلود... لطفاً صبر کنید.")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                files = run_yt_dlp_download(url, tmpdir)
-            except Exception as e:
-                try:
-                    urls = get_direct_urls(url)
-                    if urls:
-                        bot.send_message(chat_id, "دانلود مستقیم (قابل استفاده در مرورگر):")
-                        for u in urls:
-                            bot.send_message(chat_id, u)
-                            time.sleep(1)
-                    else:
-                        bot.send_message(chat_id, f"خطا در دانلود: {e}")
-                except Exception as e2:
-                    bot.send_message(chat_id, f"خطا در دانلود و دریافت لینک مستقیم: {e2}")
-                return
-
-            if not files:
-                bot.send_message(chat_id, "فایلی پیدا نشد یا نتوانستم دانلود کنم.")
-                return
-
-            for fpath in files:
-                fsize = os.path.getsize(fpath)
-                fname = os.path.basename(fpath)
-                if fsize <= MAX_SEND_SIZE:
-                    try:
-                        bot.send_document(chat_id, open(fpath, "rb"))
-                        time.sleep(1)
-                    except Exception as e:
-                        bot.send_message(chat_id, f"خطا در ارسال فایل {fname}: {e}")
-                else:
-                    try:
-                        urls = get_direct_urls(url)
-                        if urls:
-                            bot.send_message(chat_id,
-                                "فایل خیلی بزرگتر از حد مجاز ربات است. می‌تونی از این لینک‌ها دانلود کنی:")
-                            for u in urls:
-                                bot.send_message(chat_id, u)
-                                time.sleep(1)
-                        else:
-                            bot.send_message(chat_id, "فایل بزرگه و نتونستم لینک مستقیمش رو بگیرم.")
-                    except Exception as e:
-                        bot.send_message(chat_id, f"خطا در گرفتن لینک مستقیم: {e}")
-    except Exception as e:
-        bot.send_message(chat_id, f"خطا رخ داد: {e}")
-
-# منو ساز برای ارسال مجدد منوی انتخاب پلتفرم
 def send_platform_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("Instagram", "Youtube", "Soundcloud")
@@ -129,32 +101,36 @@ def cmd_start(message):
     user_id = message.from_user.id
     if not is_user_joined(user_id):
         markup = types.InlineKeyboardMarkup()
-        join_button = types.InlineKeyboardButton(
-            "عضویت در کانال ViraLand",
-            url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
-        )
+        join_button = types.InlineKeyboardButton("عضویت در کانال ViraLand", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")
         refresh_button = types.InlineKeyboardButton("✅ بررسی دوباره عضویت", callback_data="check_join")
         markup.add(join_button)
         markup.add(refresh_button)
         bot.reply_to(message, "برای استفاده از ربات باید در کانال عضو شوی 😍\nبعد از عضویت روی بررسی دوباره بزن 👇", reply_markup=markup)
         return
-
     send_platform_menu(message.chat.id)
 
-# global dict برای محدودیت روزانه
-daily_downloads = {}  # user_id -> {"count": n, "last_reset": timestamp}
-MAX_DOWNLOADS_PER_DAY = 4
-
-def can_download(user_id):
-    now = time.time()
-    user_data = daily_downloads.get(user_id, {"count": 0, "last_reset": now})
-    if now - user_data["last_reset"] > 24*60*60:
-        user_data = {"count": 0, "last_reset": now}
-    if user_data["count"] >= MAX_DOWNLOADS_PER_DAY:
-        return False, 0
-    user_data["count"] += 1
-    daily_downloads[user_id] = user_data
-    return True, MAX_DOWNLOADS_PER_DAY - user_data["count"]
+def process_download(chat_id, user_id, url, platform):
+    try:
+        bot.send_message(chat_id, f"⏳ در حال دانلود از {platform} ... لطفاً صبر کنید.")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            files = run_yt_dlp_download(url, tmpdir)
+            if not files:
+                bot.send_message(chat_id, "فایلی پیدا نشد یا نتوانستم دانلود کنم ❌")
+                return
+            for fpath in files:
+                fsize = os.path.getsize(fpath)
+                fname = os.path.basename(fpath)
+                if fsize <= MAX_SEND_SIZE:
+                    bot.send_document(chat_id, open(fpath, "rb"))
+                    time.sleep(1)
+                else:
+                    urls = get_direct_urls(url)
+                    bot.send_message(chat_id, "فایل بزرگتر از حد مجاز (50MB) است. لینک مستقیم 👇")
+                    for u in urls:
+                        bot.send_message(chat_id, u)
+                        time.sleep(1)
+    except Exception as e:
+        bot.send_message(chat_id, f"خطا در دانلود از {platform}: {e}")
 
 @bot.message_handler(func=lambda m: True)
 def handle_all(message):
@@ -162,7 +138,7 @@ def handle_all(message):
     chat_id = message.chat.id
     user_id = message.from_user.id
 
-    # انتخاب پلتفرم توسط کاربر
+    # انتخاب پلتفرم
     if text == "Instagram":
         bot.reply_to(message, "لینک پست اینستاگرام را بفرست ✨")
         user_platform[user_id] = "instagram"
@@ -176,21 +152,14 @@ def handle_all(message):
         user_platform[user_id] = "soundcloud"
         return
 
-    # بررسی عضویت در کانال
+    # بررسی عضویت
     if not is_user_joined(user_id):
         markup = types.InlineKeyboardMarkup()
-        join_button = types.InlineKeyboardButton(
-            "عضویت در کانال ViraLand",
-            url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
-        )
+        join_button = types.InlineKeyboardButton("عضویت در کانال ViraLand", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")
         refresh_button = types.InlineKeyboardButton("✅ بررسی دوباره عضویت", callback_data="check_join")
         markup.add(join_button)
         markup.add(refresh_button)
-        bot.reply_to(
-            message,
-            "برای استفاده از ربات باید در کانال ما عضو شوی 😍\nبعد از عضویت، روی دکمه بررسی دوباره بزن 👇",
-            reply_markup=markup
-        )
+        bot.reply_to(message, "برای استفاده از ربات باید عضو کانال شوی 😍", reply_markup=markup)
         return
 
     # چک cooldown
@@ -199,81 +168,39 @@ def handle_all(message):
         bot.reply_to(message, f"کمی صبر کن لطفاً — {wait} ثانیه دیگه امتحان کن.")
         return
 
-    # بررسی محدودیت روزانه
-    ok_daily, remaining = can_download(user_id)
-    if not ok_daily:
-        bot.reply_to(message, f"❌ امروز به حد اکثر {MAX_DOWNLOADS_PER_DAY} دانلود رسیدی.\nلطفاً فردا دوباره امتحان کن.")
-        return
-
-    # برداشتن پلتفرم انتخاب‌شده کاربر
     platform = user_platform.get(user_id)
     if not platform:
-        bot.reply_to(message, "ابتدا یک پلتفرم از منو انتخاب کن 👆")
+        bot.reply_to(message, "ابتدا یکی از پلتفرم‌ها را از منوی اصلی انتخاب کن 👆")
         return
 
     # بررسی لینک بر اساس پلتفرم
-    if platform == "instagram":
-        if not INSTAGRAM_REGEX.search(text):
-            bot.reply_to(message, "لطفاً لینک یک پست اینستاگرام (مثلاً https://www.instagram.com/p/...) ارسال کن.")
-            return
-        url = INSTAGRAM_REGEX.search(text).group(0)
-        executor.submit(process_instagram_download, chat_id, user_id, url)
-        bot.reply_to(message, "درخواستت ثبت شد — در حال دانلود پست اینستاگرام... ⏳")
-    elif platform == "youtube":
-        if not YOUTUBE_REGEX.search(text):
-            bot.reply_to(message, "لطفاً لینک ویدیوی یوتیوب معتبر بفرست 🎬")
-            return
-        url = YOUTUBE_REGEX.search(text).group(0)
-        executor.submit(process_generic_download, chat_id, user_id, url, "یوتیوب")
-        bot.reply_to(message, "درخواستت ثبت شد — در حال دانلود ویدیو از یوتیوب... ⏳")
-    elif platform == "soundcloud":
-        if not SOUNDCLOUD_REGEX.search(text):
-            bot.reply_to(message, "لطفاً لینک ترک یا پلی‌لیست ساندکلاد معتبر بفرست 🎵")
-            return
-        url = SOUNDCLOUD_REGEX.search(text).group(0)
-        executor.submit(process_generic_download, chat_id, user_id, url, "ساندکلاد")
-        bot.reply_to(message, "درخواستت ثبت شد — در حال دانلود از ساندکلاد... ⏳")
-    else:
-        bot.reply_to(message, "پلتفرم نامشخص است. لطفاً از منوی اصلی یکی را انتخاب کن.")
+    valid = False
+    if platform == "instagram" and INSTAGRAM_REGEX.search(text):
+        valid = True
+    elif platform == "youtube" and YOUTUBE_REGEX.search(text):
+        valid = True
+    elif platform == "soundcloud" and SOUNDCLOUD_REGEX.search(text):
+        valid = True
+
+    if not valid:
+        bot.reply_to(message, f"❌ لینک معتبر {platform} ارسال نشده است.")
         return
 
-def process_generic_download(chat_id, user_id, url, platform_name):
-    try:
-        bot.send_message(chat_id, f"⏳ در حال دانلود از {platform_name} ... لطفاً صبر کنید.")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            files = run_yt_dlp_download(url, tmpdir)
-            if not files:
-                bot.send_message(chat_id, "فایلی پیدا نشد یا دانلود نشد ❌")
-                return
-            for fpath in files:
-                fsize = os.path.getsize(fpath)
-                fname = os.path.basename(fpath)
-                if fsize <= MAX_SEND_SIZE:
-                    try:
-                        bot.send_document(chat_id, open(fpath, "rb"))
-                        time.sleep(1)
-                    except Exception as e:
-                        bot.send_message(chat_id, f"خطا در ارسال فایل {fname}: {e}")
-                else:
-                    urls = []
-                    try:
-                        urls = get_direct_urls(url)
-                    except Exception as e:
-                        bot.send_message(chat_id, f"خطا در گرفتن لینک مستقیم: {e}")
-                    if urls:
-                        bot.send_message(chat_id, "فایل بزرگ است. لینک مستقیم 👇")
-                        for u in urls:
-                            bot.send_message(chat_id, u)
-                            time.sleep(1)
-    except Exception as e:
-        bot.send_message(chat_id, f"خطا در دانلود از {platform_name}: {e}")
+    # محدودیت روزانه بر اساس پلتفرم
+    ok_daily, remain, max_limit = check_daily_limit(user_id, platform)
+    if not ok_daily:
+        bot.reply_to(message, f"🚫 به حد مجاز {max_limit} دانلود روزانه از {platform} رسیدی.\nفردا دوباره امتحان کن.")
+        return
+
+    url = text
+    executor.submit(process_download, chat_id, user_id, url, platform)
+    bot.reply_to(message, f"✅ درخواستت ثبت شد — در حال دانلود از {platform}...")
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_join")
 def check_join_callback(call):
     user_id = call.from_user.id
     if is_user_joined(user_id):
-        bot.answer_callback_query(call.id, "✅ عضویت شما تایید شد!")
-        # فرستادن منوی انتخاب پس از تایید عضویت
+        bot.answer_callback_query(call.id, "✅ عضویت تایید شد!")
         send_platform_menu(call.message.chat.id)
     else:
         bot.answer_callback_query(call.id, "❌ هنوز عضو کانال نشدی!")

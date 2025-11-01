@@ -112,29 +112,28 @@ def cmd_start(message):
 
 def process_download(chat_id, user_id, url, platform):
     try:
-        bot.send_message(chat_id, f"⏳ در حال بررسی لینک از {platform} ... لطفاً صبر کنید.")
+        bot.send_message(chat_id, f"⏳ در حال بررسی لینک {platform} ... لطفاً صبر کنید.")
 
-        # گرفتن حجم تقریبی فایل
+        # گرفتن اطلاعات ویدیو بدون دانلود کامل
         cmd = ["yt-dlp", "--skip-download", "--print", "%(filesize_approx)s", url]
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if proc.returncode != 0:
-            raise RuntimeError(f"yt-dlp failed: {proc.stderr.strip()}")
+            bot.send_message(chat_id, f"❌ نتوانستم اطلاعات لینک را دریافت کنم.")
+            return
 
         filesize_str = proc.stdout.strip()
         filesize = int(filesize_str) if filesize_str.isdigit() else None
 
-        # اگر حجم بالای 50 مگ بود، دانلود نکن
-        if filesize is not None and filesize > MAX_SEND_SIZE:
-            bot.send_message(chat_id, "⚠️ در حال حاضر فایل‌های بالای 50 مگابایت قابل دانلود نیستند.")
+        if filesize is None:
+            bot.send_message(chat_id, "⚠️ حجم فایل قابل تشخیص نیست، دانلود انجام نمی‌شود.")
             return
 
-        # حالا لینک‌های مستقیم رو بگیر (فقط برای اطلاع کاربر)
-        urls = get_direct_urls(url)
-        if not urls:
-            bot.send_message(chat_id, "❌ نتوانستم اطلاعات لینک را دریافت کنم.")
+        if filesize > MAX_SEND_SIZE:
+            bot.send_message(chat_id, "⚠️ در حال حاضر فایل‌های بزرگ‌تر از 50 مگابایت قابل دانلود نیستند.")
             return
 
-        # حجم مناسب، دانلود و ارسال کن
+        # اگر حجم مناسب بود، دانلود و ارسال کن
+        bot.send_message(chat_id, "✅ حجم فایل مناسب است، دانلود شروع می‌شود...")
         with tempfile.TemporaryDirectory() as tmpdir:
             files = run_yt_dlp_download(url, tmpdir)
             if not files:
@@ -147,6 +146,7 @@ def process_download(chat_id, user_id, url, platform):
 
     except Exception as e:
         bot.send_message(chat_id, f"خطا در دانلود از {platform}: {e}")
+
 
 
 

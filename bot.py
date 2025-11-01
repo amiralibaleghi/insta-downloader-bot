@@ -94,7 +94,7 @@ def get_direct_urls(url):
 
 def send_platform_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("Instagram", "Youtube", "Soundcloud")
+    markup.add("Instagram", "Youtube Shorts", "Soundcloud")
     bot.send_message(chat_id, "پلتفرم مورد نظرت رو انتخاب کن 👇", reply_markup=markup)
 
 @bot.message_handler(commands=['start'])
@@ -166,7 +166,7 @@ def handle_all(message):
         return
     elif text == "Youtube":
         bot.reply_to(message, "لینک ویدیوی یوتیوب را بفرست 🎥")
-        user_platform[user_id] = "youtube"
+        user_platform[user_id] = "Youtube Shorts"
         return
     elif text == "Soundcloud":
         bot.reply_to(message, "لینک ترک یا پلی‌لیست ساندکلاد را بفرست 🎶")

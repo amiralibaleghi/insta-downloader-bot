@@ -121,7 +121,7 @@ def process_instagram_download(chat_id, user_id, url):
 # منو ساز برای ارسال مجدد منوی انتخاب پلتفرم
 def send_platform_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("📸 دانلود از اینستاگرام", "🎬 دانلود از یوتیوب", "🎵 دانلود از ساندکلاد")
+    markup.add("instagram", "Youtube", "Soundcloud")
     bot.send_message(chat_id, "پلتفرم مورد نظرت رو انتخاب کن 👇", reply_markup=markup)
 
 @bot.message_handler(commands=['start'])

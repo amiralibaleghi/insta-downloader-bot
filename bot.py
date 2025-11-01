@@ -112,9 +112,9 @@ def cmd_start(message):
 
 def process_download(chat_id, user_id, url, platform):
     try:
-        bot.send_message(chat_id, f"⏳ در حال بررسی و دانلود از {platform} ... لطفاً صبر کنید.")
+        bot.send_message(chat_id, f"⏳ در حال بررسی لینک از {platform} ... لطفاً صبر کنید.")
 
-        # گرفتن اطلاعات لینک بدون دانلود کامل
+        # گرفتن لینک‌های مستقیم بدون دانلود کامل
         urls = get_direct_urls(url)
         if not urls:
             bot.send_message(chat_id, "❌ نتوانستم اطلاعات لینک را دریافت کنم.")
@@ -129,12 +129,9 @@ def process_download(chat_id, user_id, url, platform):
         filesize_str = proc.stdout.strip()
         filesize = int(filesize_str) if filesize_str.isdigit() else None
 
-        # اگر حجم بیشتر از 50 مگابایت بود، دانلود نکن و پیام بده
+        # اگر حجم بالای 50 مگ بود، دانلود نکن
         if filesize is not None and filesize > MAX_SEND_SIZE:
-            bot.send_message(
-                chat_id, 
-                "⚠️ در حال حاضر فایل‌هایی با حجم بیشتر از 50 مگابایت قابل دانلود نیستند."
-            )
+            bot.send_message(chat_id, "⚠️ در حال حاضر فایل‌های بالای 50 مگابایت قابل دانلود نیستند.")
             return
 
         # اگر حجم مناسب بود، دانلود و ارسال کن

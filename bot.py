@@ -166,7 +166,7 @@ def handle_all(message):
         return
     elif text == "Youtube Shorts":
         bot.reply_to(message, "لینک ویدیوی یوتیوب را بفرست 🎥")
-        user_platform[user_id] = "Youtube Shorts"
+        user_platform[user_id] = "youtube"
         return
     elif text == "Soundcloud":
         bot.reply_to(message, "لینک ترک یا پلی‌لیست ساندکلاد را بفرست 🎶")

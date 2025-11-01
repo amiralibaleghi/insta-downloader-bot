@@ -112,24 +112,32 @@ def cmd_start(message):
 
 def process_download(chat_id, user_id, url, platform):
     try:
-        bot.send_message(chat_id, f"⏳ در حال بررسی لینک {platform} ... لطفاً صبر کنید.")
+        bot.send_message(chat_id, f"⏳ در حال بررسی و دانلود از {platform} ... لطفاً صبر کنید.")
 
-        # گرفتن اطلاعات ویدیو بدون دانلود کامل
+        # گرفتن اطلاعات لینک بدون دانلود کامل
+        urls = get_direct_urls(url)
+        if not urls:
+            bot.send_message(chat_id, "❌ نتوانستم اطلاعات لینک را دریافت کنم.")
+            return
+
+        # بررسی حجم تقریبی با استفاده از yt-dlp (metadata)
         cmd = ["yt-dlp", "--skip-download", "--print", "%(filesize_approx)s", url]
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if proc.returncode != 0:
-            bot.send_message(chat_id, f"❌ نتوانستم اطلاعات لینک را دریافت کنم.")
-            return
+            raise RuntimeError(f"yt-dlp failed: {proc.stderr.strip()}")
 
         filesize_str = proc.stdout.strip()
         filesize = int(filesize_str) if filesize_str.isdigit() else None
 
-        if filesize > MAX_SEND_SIZE:
-            bot.send_message(chat_id, "⚠️ در حال حاضر فایل‌های بزرگ‌تر از 50 مگابایت قابل دانلود نیستند.")
+        # اگر حجم بیشتر از 50 مگابایت بود، دانلود نکن و پیام بده
+        if filesize is not None and filesize > MAX_SEND_SIZE:
+            bot.send_message(
+                chat_id, 
+                "⚠️ در حال حاضر فایل‌هایی با حجم بیشتر از 50 مگابایت قابل دانلود نیستند."
+            )
             return
 
         # اگر حجم مناسب بود، دانلود و ارسال کن
-        bot.send_message(chat_id, "✅ حجم فایل مناسب است، دانلود شروع می‌شود...")
         with tempfile.TemporaryDirectory() as tmpdir:
             files = run_yt_dlp_download(url, tmpdir)
             if not files:
@@ -142,7 +150,6 @@ def process_download(chat_id, user_id, url, platform):
 
     except Exception as e:
         bot.send_message(chat_id, f"خطا در دانلود از {platform}: {e}")
-
 
 
 

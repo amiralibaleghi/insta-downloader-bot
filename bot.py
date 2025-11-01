@@ -114,13 +114,7 @@ def process_download(chat_id, user_id, url, platform):
     try:
         bot.send_message(chat_id, f"⏳ در حال بررسی لینک از {platform} ... لطفاً صبر کنید.")
 
-        # گرفتن لینک‌های مستقیم بدون دانلود کامل
-        urls = get_direct_urls(url)
-        if not urls:
-            bot.send_message(chat_id, "❌ نتوانستم اطلاعات لینک را دریافت کنم.")
-            return
-
-        # بررسی حجم تقریبی با استفاده از yt-dlp (metadata)
+        # گرفتن حجم تقریبی فایل
         cmd = ["yt-dlp", "--skip-download", "--print", "%(filesize_approx)s", url]
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if proc.returncode != 0:
@@ -134,7 +128,13 @@ def process_download(chat_id, user_id, url, platform):
             bot.send_message(chat_id, "⚠️ در حال حاضر فایل‌های بالای 50 مگابایت قابل دانلود نیستند.")
             return
 
-        # اگر حجم مناسب بود، دانلود و ارسال کن
+        # حالا لینک‌های مستقیم رو بگیر (فقط برای اطلاع کاربر)
+        urls = get_direct_urls(url)
+        if not urls:
+            bot.send_message(chat_id, "❌ نتوانستم اطلاعات لینک را دریافت کنم.")
+            return
+
+        # حجم مناسب، دانلود و ارسال کن
         with tempfile.TemporaryDirectory() as tmpdir:
             files = run_yt_dlp_download(url, tmpdir)
             if not files:
@@ -147,6 +147,7 @@ def process_download(chat_id, user_id, url, platform):
 
     except Exception as e:
         bot.send_message(chat_id, f"خطا در دانلود از {platform}: {e}")
+
 
 
 @bot.message_handler(func=lambda m: True)

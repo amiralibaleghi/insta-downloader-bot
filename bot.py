@@ -28,7 +28,7 @@ executor = ThreadPoolExecutor(max_workers=WORKERS)
 # الگوهای دقیق لینک
 INSTAGRAM_REGEX = re.compile(r"https?://(www\.)?instagram\.com/[^\s]+")
 YOUTUBE_REGEX = re.compile(r"(https?://)?(www\.)?(youtube\.com|youtu\.be)/[^\s]+")
-SOUNDCLOUD_REGEX = re.compile(r"(https?://(on\.soundcloud\.com|soundcloud\.com)/[^\s]+)")
+SOUNDCLOUD_REGEX = re.compile(r'(https?://(?:www\.|m\.|on\.)?soundcloud\.com/[^\s]+)')
 
 # دیکشنری‌ها
 last_request_time = {}

@@ -122,7 +122,8 @@ def process_download(chat_id, user_id, url, platform):
                 fsize = os.path.getsize(fpath)
                 fname = os.path.basename(fpath)
                 if fsize <= MAX_SEND_SIZE:
-                    bot.send_document(chat_id, open(fpath, "rb"))
+                    with open(fpath, "rb") as f:  # ← فایل با context manager باز می‌شه
+                        bot.send_document(chat_id, f)
                     time.sleep(1)
                 else:
                     urls = get_direct_urls(url)

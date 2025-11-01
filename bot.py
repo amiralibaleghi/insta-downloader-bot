@@ -164,7 +164,7 @@ def handle_all(message):
         bot.reply_to(message, "لینک پست اینستاگرام را بفرست ✨")
         user_platform[user_id] = "instagram"
         return
-    elif text == "Youtube":
+    elif text == "Youtube Shorts":
         bot.reply_to(message, "لینک ویدیوی یوتیوب را بفرست 🎥")
         user_platform[user_id] = "Youtube Shorts"
         return
